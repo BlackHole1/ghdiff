@@ -23,6 +23,10 @@ import {
 
 import { CommentComposer } from '@/components/CommentComposer';
 import { CommentThreadCard } from '@/components/CommentThreadCard';
+import {
+  applyCronSchedules,
+  CRON_SCHEDULES_CSS,
+} from '@/components/diffCronSchedules';
 import { applyLineMarks, LINE_MARKS_CSS } from '@/components/diffLineMarks';
 import {
   applySearchMarks,
@@ -86,7 +90,7 @@ interface ReviewViewerProps {
  * its element pool when it changes. Both halves are constants, so this is
  * made once.
  */
-const VIEWER_CSS = LINE_MARKS_CSS + SEARCH_MARKS_CSS;
+const VIEWER_CSS = LINE_MARKS_CSS + CRON_SCHEDULES_CSS + SEARCH_MARKS_CSS;
 
 // The gutter utility is the small button that appears in the line gutter on
 // hover. It is what opens a comment composer on the hovered line.
@@ -192,24 +196,21 @@ export const ReviewViewer = memo(function ReviewViewer({
         if (context.item.type !== 'diff') return;
         onCreateDraft(context.item.id, range);
       },
-      // The stylesheet for the two kinds of marks below, installed by the
+      // The stylesheet for the three kinds of marks below, installed by the
       // library inside each file's shadow root, where no outside selector can
       // reach.
       unsafeCSS: VIEWER_CSS,
-      onPostRender(node, instance, phase, context) {
+      onPostRender(node, _instance, phase, { item }) {
         if (phase === 'unmount') {
           // The rows are about to go, and so must the ranges painted over
           // them, or the registry keeps a window's worth per pass.
           clearSearchMarks(node);
           return;
         }
-        // `fileDiffCache` is protected in the type and a plain getter at
-        // runtime; there is no public path from an instance to its metadata.
-        const fileDiff = (
-          instance as unknown as { fileDiffCache?: FileDiffMetadata }
-        ).fileDiffCache;
-        applyLineMarks(node, fileDiff);
-        applySearchMarks(node, context.item.id, searchMarksRef.current);
+        if (item.type !== 'diff') return;
+        applyLineMarks(node, item.fileDiff);
+        applyCronSchedules(node, item.fileDiff);
+        applySearchMarks(node, item.id, searchMarksRef.current);
       },
     }),
     [

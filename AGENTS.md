@@ -119,9 +119,9 @@ reads through a leading `gh` segment for the one navigation the redirect takes.
 
 **The userscript makes that host swap a button, and the tab bar is where it
 goes.** `public/ghdiff.user.js` adds one link to github.com, beside **Files
-changed** in the pull request's own tab row. That row is the one part of the
-page that both of GitHub's headers still draw and that the conversation and the
-diff share, so a single insertion point covers all four combinations:
+changed** at the end of the pull request's own tab row. That row is the one part
+of the page that both of GitHub's headers still draw and that the conversation
+and the diff share, so a single insertion point covers all four combinations:
 `nav[aria-label="Pull request navigation"]` is the React header and
 `.tabnav-tabs` is the one it has not replaced yet. Neither selector is a
 contract, so `findRowByLinkTo` says what the row _is_ — the row that holds the
@@ -139,13 +139,31 @@ which is always hidden — so the search takes whichever is on screen and they
 share the one row either way. No selector is named for a commit at all, because
 every class on that header is hashed per build.
 
+The button wears two skins, and both were read off the live page rather than
+guessed. In the tab row it is another one of github.com's own tabs — the same
+`TabNavLink` the row draws for **Files changed**: transparent and borderless in
+its unselected shape, `8px 12px` of padding at `--text-body-size-medium` and
+weight 400, stretched to the row's height, with a leading `link-external`
+octicon in `--fgColor-muted` the way every tab in the row carries one, gone
+under github.com's `sm` breakpoint the way theirs are. Beside **Browse files**
+on a commit it is Primer React's own default `Button`, the component github.com
+draws next to it there — `prc-Button-ButtonBase`, a medium control at
+`--control-medium-size` and weight 500, the 80 ms colour transition, the hover
+and active backgrounds, and the focus ring. The custom properties are Primer's
+design tokens, set by github.com itself on the document element for both colour
+schemes, so the button follows the reviewer's scheme without a stylesheet of its
+own to keep in step; the fallbacks are the ones Primer ships, for the day a
+token is renamed.
+
 The two rows are not the same row, and `data-ghdiff-place` on the button is what
-lets one stylesheet dress it for both. The tab bar has no gap of its own and
-holds 28px controls at 12px; the commit header's action row is a flex row with
-an 8px gap holding a 32px **Browse files** at 14px. A button that carried the
-tab bar's figures into the commit header would sit short beside it, and one that
-kept the tab bar's own `margin-left` there would sit 16px off. Everything the
-two places share is stated once, above them both.
+lets one stylesheet dress it for both. The tab row has no gap of its own, so the
+tab skin sits flush against **Files changed** and reads as the next tab; the
+commit header's action row is a flex row with an 8px gap of its own, so the
+button skin carries no margin there. The old server-rendered `.tabnav-tabs`
+draws its tabs wider and quieter than the React one — muted at rest, spacious
+padding, a colour-only hover — and a descendant override under the same selector
+github.com scopes its own rules with follows it. Everything else the two places
+share is stated once, above them both.
 
 A move from a pull request to a commit is a navigation GitHub makes without
 reloading, and it reuses this one button. So `sync` writes the href, the place
@@ -785,9 +803,9 @@ display-menu switch costs no render at all: the stamps stay, and
 through the shadow boundary — is the whole toggle, the same trick `usePaneWidth`
 plays. Marks are cached in a WeakMap per metadata object, which hydration
 mutates in place and a filter change reuses, so an entry cannot go stale.
-`fileDiffCache` is protected in the library's types and a plain getter at
-runtime; the cast in `ReviewViewer` is the one place that leans on it, and a
-library upgrade must re-check it.
+`CodeView` adds the current item context as `onPostRender`'s fourth argument, so
+`ReviewViewer` passes `item.fileDiff` to every annotation pass through that
+public contract rather than reaching into the renderer's protected cache.
 
 One thing GitHub decides rather than this app: a line comment written on an
 expanded line of a **pull request** is a line outside the diff, and the review
@@ -795,6 +813,36 @@ comment API refuses one. The failure arrives as GitHub's own sentence in the
 strip along the foot of the screen, which is where every other comment failure
 already lands. A commit and a compare range keep their comments in the browser
 and take them anywhere.
+
+**A cron expression says when it runs beside the code.** `src/lib/cron.ts`
+recognizes whole quoted literals, bare `cron` / `schedule` fields, and entries
+in `crontab`, `*.cron`, and `cron.d/` files. A syntax gate keeps the input to
+standard five-field cron, then `cron-schedule` validates and expands it into
+sorted, distinct field values. The gate is necessary even with a parser:
+`cron-schedule` accepts numeric prefixes such as `1W` as 1. `normalizeField`
+turns the parsed values into concise input for the English-only `cronstrue`
+descriptor, which does not validate schedules itself. Six- and seven-field
+dialects are left alone rather than guessing whether a field is seconds or a
+year. Named months and weekdays, lists, ranges, steps and standard aliases are
+read; `@reboot` names startup rather than inventing a period.
+
+Two readings need more than the library's default words. A step resets at the
+field boundary, so `*/35` is minute 0 and 35 of each hour, not an interval of 35
+minutes. Overlapping lists and Sunday aliases are deduplicated before a
+description is written. Restricted day-of-month and day-of-week fields are OR in
+standard cron, so their descriptions are explicitly joined with **or**. That
+decision uses the original fields: Vixie cron records a leading star, not a star
+anywhere in a list, and normalization must not erase that distinction. No
+timezone is inferred from the reviewer's browser.
+
+`diffCronSchedules.ts` uses the same `onPostRender` and `unsafeCSS` seam as the
+whitespace marks. It reads only rendered rows and caches by node, text and path,
+so highlighting, hydration and virtualized replacements get a fresh answer. The
+hint is absolutely positioned generated content after the code: it changes
+neither the source text selected for copying nor the virtualizer's line height.
+A narrow pane clips the hint; the row's native tooltip holds the complete
+expression, description and timezone caveat. Split and unified views use the
+same path, including deleted lines.
 
 **Cmd+F is answered by the app, because the browser's find reads the DOM and
 most of the diff is not in it.** The viewer renders the files under the viewport
@@ -1218,9 +1266,33 @@ and the overwhelmingly likely somebody is another tab whose new cookie the
 browser is holding right now — a cookie this request cannot see, because the
 browser sent the old one before the new one existed. So the route breaks nothing
 and lets the caller retry, and the retry carries the newer cookie. In the other
-case — a refresh token spent by somebody who should not have it — that retry
-gets 401 and the client stops there. The wrong guess costs one request; the
-opposite wrong guess would sign a reviewer out for having two tabs open.
+case — a refresh token spent where this browser will never see the result,
+revoked at github.com or taken — the retry carries the same dead cookie and gets
+the same 401, and `withRefresh` ends the session on that second 401 through
+`/api/auth/signout`, the route that already knows how to end one. It is the one
+place that sees both answers: a 401 after a 204 is the proof the race had no
+winner here, and without that press a cookie no refresh can mend would cost a
+refresh and an error on every load for the rest of its thirty days. The wrong
+guess costs one request; the opposite wrong guess would sign a reviewer out for
+having two tabs open.
+
+**A spent token is answered 401, because nothing else asks for a refresh.**
+`withRefresh` calls the refresh route after a 401 and at no other time, and for
+one deploy no read produced one: `resolveGitHubToken` found the dead token,
+answered with no token, and every read went on anonymously — `viewer.get` said
+nobody was signed in and a private diff came back Not Found, eight hours into a
+sign-in good for thirty days. Only a write reached `requireToken`'s 401, so
+pressing Approve mended a session a page load could not. `refreshDue` in
+`src/lib/session.ts` names the one state — inside the ceiling, access token
+spent, refresh token live — and the three routes that read the cookie answer it
+with 401 before GitHub is asked: the RPC handler through one middleware over
+every procedure, so the client decodes a sentence rather than a body it cannot
+parse, and `/api/diff` and `/api/file` as `text/plain`. It outranks
+`GITHUB_TOKEN`, or that reviewer's ninth hour would be spent as the deployment's
+own account. A session past the ceiling or with no refresh token gets no 401 and
+is anonymous, as it always was: there is nothing to send the browser to fetch.
+`describeReviewFailure` gives the status the setup button, since by the time a
+401 reaches the panel the refresh has failed and the session is gone.
 
 Inside one tab the same job is a promise. `withRefresh` in
 `src/lib/authFetch.ts` wraps every call this app makes to its own Worker: a 401
@@ -1871,8 +1943,8 @@ separate step. Re-run it after any change to the bindings.
 `dist/server/wrangler.json` binds) and `dist/server` (the Worker). Nothing in
 the build reads a GitHub token.
 
-The Worker script is about 2.94 MiB gzipped, against a 3 MiB limit on the
-Workers free plan and 10 MiB on the paid one. Roughly 67 KiB of headroom is
+The Worker script is about 2.95 MiB gzipped, against a 3 MiB limit on the
+Workers free plan and 10 MiB on the paid one. Roughly 52 KiB of headroom is
 left, and `pnpm exec wrangler deploy --dry-run` prints the figure. Find in diff
 cost about 6 KiB of it, for modules the server never calls. Almost all of it is
 shiki: `@pierre/diffs`'s own entry imports the bare `shiki` specifier, which
