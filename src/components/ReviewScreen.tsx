@@ -461,6 +461,9 @@ export function ReviewScreen({ target }: { target: ReviewTarget }) {
     ready: diffReady,
     activeItemId,
     onJump: handleSearchJump,
+    // The list is over the diff on a phone, and the bar is in the diff's
+    // column, so a search opened under it would go to a field nobody can see.
+    onShow: () => setFilesOpen(false),
   });
 
   const anchor = useDiffAnchor({

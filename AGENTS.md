@@ -912,6 +912,13 @@ glides. It opens a folded file on the way and asks for the line again over the
 next frames through `runOnFrames`, the loop the range anchor already needed,
 because the fold comes off on the render after the press.
 
+Three keys are left to whoever owns them. The shortcut stands aside while a
+dialog is open: a modal makes the rest of the document inert, the bar's field
+with it, and the browser's own find is the one that reads a dialog. The field
+ignores the Enter and Escape an IME sends to commit or drop a composition, or a
+Chinese query would step the old search instead of landing. And opening the bar
+takes a phone's file list away, which sits over the very column the bar is in.
+
 **The wait says how much has arrived, and never how much is left.** A patch of
 tens of megabytes is a long stare at one sentence — oven-sh/bun#30412 is 43.3 MB
 in 1,654 chunks over four seconds — so `useReviewPatch` reads the body through

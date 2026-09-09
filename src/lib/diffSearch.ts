@@ -163,8 +163,12 @@ export function searchDiff(
       pattern.lastIndex = 0;
       let found = pattern.exec(text);
       if (found == null) return true;
+      // One hit past what the cap has room for is enough to prove truncation,
+      // so a minified line is never scanned to its end for hits that would
+      // only be thrown away.
+      const room = limit - matches.length + 1;
       const hits: [number, number][] = [];
-      for (; found != null; found = pattern.exec(text)) {
+      for (; found != null && hits.length < room; found = pattern.exec(text)) {
         hits.push([found.index, found.index + found[0].length]);
       }
       // A match per place the line is drawn, the old side first: it is the

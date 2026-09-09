@@ -99,9 +99,16 @@ export function useDiffSearch(options: {
   activeItemId: string | undefined;
   /** Puts the match on screen. */
   onJump(match: SearchMatch): void;
+  /**
+   * Called as the bar opens or is focused again, before the field takes
+   * focus. On a phone the file list sits over the column the bar is in, and
+   * this is where the screen takes it away.
+   */
+  onShow(): void;
 }): DiffSearchState {
   const { items, diffStyle, ready, activeItemId } = options;
   const jump = useStableCallback(options.onJump);
+  const reveal = useStableCallback(options.onShow);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [current, setCurrent] = useState<SearchMatch | undefined>(undefined);
@@ -165,6 +172,7 @@ export function useDiffSearch(options: {
     }
   }, []);
   const show = () => {
+    reveal();
     const input = inputRef.current;
     if (input == null) {
       setOpen(true);
@@ -180,6 +188,10 @@ export function useDiffSearch(options: {
   // the state of the render it fires in.
   const onKeyDown = useStableCallback((event: KeyboardEvent) => {
     if (event.defaultPrevented) return;
+    // A modal makes the rest of the document inert, this bar's field with it,
+    // so the browser's own find is the right one while a dialog is open: it
+    // is the one that reads the dialog, and this one could not take focus.
+    if (document.querySelector('dialog[open]') != null) return;
     if (isFindShortcut(event)) {
       event.preventDefault();
       show();

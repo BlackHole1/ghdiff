@@ -148,6 +148,16 @@ describe('searchDiff', () => {
     assert.deepEqual(split.matches.map(shape), [['deletions', 10, 6, 10]]);
     assert.equal(split.truncated, true);
   });
+
+  it('caps inside one line, and says so', () => {
+    const item = fileItem('m.txt', ['@@ -1 +1 @@', '-x', `+${'a'.repeat(50)}`]);
+    const capped = searchDiff([item], 'a', { ...UNIFIED, limit: 3 });
+    assert.equal(capped.matches.length, 3);
+    assert.equal(capped.truncated, true);
+    const whole = searchDiff([item], 'a', { ...UNIFIED, limit: 50 });
+    assert.equal(whole.matches.length, 50);
+    assert.equal(whole.truncated, false);
+  });
 });
 
 describe('nearestMatchIndex', () => {

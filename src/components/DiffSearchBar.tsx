@@ -44,6 +44,11 @@ export function DiffSearchBar({ search }: { search: DiffSearchState }) {
         wrapperClassName="max-phone:flex-1 w-72 max-w-full min-w-0"
         onChange={(event) => search.setQuery(event.target.value)}
         onKeyDown={(event) => {
+          // An IME sends Enter to commit the composed text and Escape to drop
+          // it, and both arrive here with `isComposing` set. Neither is the
+          // bar's to answer, or a Chinese query steps the old search instead
+          // of landing.
+          if (event.nativeEvent.isComposing) return;
           if (event.key === 'Enter') {
             event.preventDefault();
             if (event.shiftKey) search.previous();
